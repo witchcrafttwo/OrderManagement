@@ -68,6 +68,14 @@ export default function MenuPage({
     load(room.id);
   }
 
+  async function updateName(item: MenuItem, newName: string) {
+    if (!room) return;
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === item.name) return;
+    await supabase.from("menu_items").update({ name: trimmed }).eq("id", item.id);
+    load(room.id);
+  }
+
   async function removeItem(item: MenuItem) {
     if (!room) return;
     if (!confirm(`「${item.name}」を削除しますか?`)) return;
@@ -106,7 +114,10 @@ export default function MenuPage({
               }`}
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate font-bold">{item.name}</p>
+                <NameEditor
+                  value={item.name}
+                  onSave={(v) => updateName(item, v)}
+                />
                 <PriceEditor
                   value={item.price}
                   onSave={(v) => updatePrice(item, v)}
@@ -159,6 +170,58 @@ export default function MenuPage({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function NameEditor({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => {
+          setDraft(value);
+          setEditing(true);
+        }}
+        className="flex items-center gap-1 truncate text-left font-bold"
+      >
+        <span className="truncate">{value}</span>
+        <span className="text-xs text-slate-300">✎</span>
+      </button>
+    );
+  }
+
+  function commit() {
+    onSave(draft);
+    setEditing(false);
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 font-bold outline-none focus:border-brand"
+      />
+      <button
+        onClick={commit}
+        className="rounded bg-brand px-2 py-1 text-xs font-bold text-white"
+      >
+        保存
+      </button>
     </div>
   );
 }
