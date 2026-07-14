@@ -169,6 +169,14 @@ export default function MenuPage({
                   onSave={(v) => updatePrice(item, v)}
                 />
               </div>
+              <Link
+                href={`/room/${room.code}/menu/${item.id}`}
+                className="rounded-lg px-2 py-2 text-lg active:bg-slate-100"
+                aria-label="オプション設定"
+                title="オプション設定"
+              >
+                ⚙
+              </Link>
               <button
                 onClick={() => toggleActive(item)}
                 className={`rounded-lg px-3 py-2 text-xs font-bold ${

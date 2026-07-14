@@ -5,8 +5,15 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useRoom } from "@/lib/useRoom";
 import { RoomHeader } from "@/components/RoomHeader";
+import { OrderOptionModal } from "@/components/OrderOptionModal";
 import { yen } from "@/lib/format";
-import type { CartLine, MenuItem } from "@/lib/types";
+import { buildOptionForest, composeCartLine, hasOptions } from "@/lib/options";
+import type {
+  CartLine,
+  MenuItem,
+  OptionNode,
+  SelectedOption,
+} from "@/lib/types";
 
 export default function RegisterPage({
   params,
@@ -16,20 +23,26 @@ export default function RegisterPage({
   const { code } = use(params);
   const { room, loading, error } = useRoom(code);
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [optionNodes, setOptionNodes] = useState<OptionNode[]>([]);
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [lastTicket, setLastTicket] = useState<number | null>(null);
+  const [optionItem, setOptionItem] = useState<MenuItem | null>(null);
 
   const load = useCallback(async (roomId: string) => {
-    const { data } = await supabase
-      .from("menu_items")
-      .select("*")
-      .eq("room_id", roomId)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
-    setItems((data as MenuItem[]) ?? []);
+    const [{ data: itemData }, { data: nodeData }] = await Promise.all([
+      supabase
+        .from("menu_items")
+        .select("*")
+        .eq("room_id", roomId)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase.from("option_nodes").select("*").eq("room_id", roomId),
+    ]);
+    setItems((itemData as MenuItem[]) ?? []);
+    setOptionNodes((nodeData as OptionNode[]) ?? []);
   }, []);
 
   useEffect(() => {
@@ -39,7 +52,7 @@ export default function RegisterPage({
   const total = useMemo(
     () =>
       Object.values(cart).reduce(
-        (sum, line) => sum + line.menuItem.price * line.quantity,
+        (sum, line) => sum + line.unitPrice * line.quantity,
         0
       ),
     [cart]
@@ -49,33 +62,55 @@ export default function RegisterPage({
     [cart]
   );
 
-  function addToCart(item: MenuItem) {
+  /** オプション確定後、または無オプション商品をカートに積む */
+  function addLineToCart(item: MenuItem, options: SelectedOption[]) {
+    const { key, displayName, unitPrice } = composeCartLine(item, options);
     setCart((prev) => {
-      const existing = prev[item.id];
+      const existing = prev[key];
       return {
         ...prev,
-        [item.id]: {
+        [key]: {
+          key,
           menuItem: item,
+          options,
+          displayName,
+          unitPrice,
           quantity: (existing?.quantity ?? 0) + 1,
         },
       };
     });
   }
 
-  function changeQty(itemId: string, delta: number) {
+  function onTapItem(item: MenuItem) {
+    if (hasOptions(optionNodes, item.id)) {
+      setOptionItem(item);
+    } else {
+      addLineToCart(item, []);
+    }
+  }
+
+  function changeQty(key: string, delta: number) {
     setCart((prev) => {
-      const line = prev[itemId];
+      const line = prev[key];
       if (!line) return prev;
       const nextQty = line.quantity + delta;
       const next = { ...prev };
       if (nextQty <= 0) {
-        delete next[itemId];
+        delete next[key];
       } else {
-        next[itemId] = { ...line, quantity: nextQty };
+        next[key] = { ...line, quantity: nextQty };
       }
       return next;
     });
   }
+
+  const qtyForItem = useCallback(
+    (itemId: string) =>
+      Object.values(cart)
+        .filter((l) => l.menuItem.id === itemId)
+        .reduce((s, l) => s + l.quantity, 0),
+    [cart]
+  );
 
   async function submitOrder() {
     if (!room || count === 0) return;
@@ -96,8 +131,8 @@ export default function RegisterPage({
       const lines = Object.values(cart).map((line) => ({
         order_id: orderData.id,
         menu_item_id: line.menuItem.id,
-        name: line.menuItem.name,
-        price: line.menuItem.price,
+        name: line.displayName,
+        price: line.unitPrice,
         quantity: line.quantity,
       }));
       const { error: itemsError } = await supabase
@@ -157,21 +192,29 @@ export default function RegisterPage({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {items.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => addToCart(item)}
-                className="flex flex-col items-start rounded-2xl bg-white p-4 text-left shadow-sm active:scale-95"
-              >
-                <span className="font-bold">{item.name}</span>
-                <span className="text-sm text-slate-500">{yen(item.price)}</span>
-                {cart[item.id] && (
-                  <span className="mt-1 rounded-full bg-brand px-2 text-xs font-bold text-white">
-                    ×{cart[item.id].quantity}
+            {items.map((item) => {
+              const qty = qtyForItem(item.id);
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTapItem(item)}
+                  className="flex flex-col items-start rounded-2xl bg-white p-4 text-left shadow-sm active:scale-95"
+                >
+                  <span className="font-bold">{item.name}</span>
+                  <span className="text-sm text-slate-500">
+                    {yen(item.price)}
+                    {hasOptions(optionNodes, item.id) && (
+                      <span className="ml-1 text-xs text-brand">〜</span>
+                    )}
                   </span>
-                )}
-              </button>
-            ))}
+                  {qty > 0 && (
+                    <span className="mt-1 rounded-full bg-brand px-2 text-xs font-bold text-white">
+                      ×{qty}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -182,18 +225,18 @@ export default function RegisterPage({
           <div className="max-h-48 overflow-y-auto px-4 pt-3">
             {Object.values(cart).map((line) => (
               <div
-                key={line.menuItem.id}
+                key={line.key}
                 className="flex items-center gap-2 border-b py-2 last:border-0"
               >
                 <span className="min-w-0 flex-1 truncate text-sm">
-                  {line.menuItem.name}
+                  {line.displayName}
                 </span>
                 <span className="text-xs text-slate-400">
-                  {yen(line.menuItem.price)}
+                  {yen(line.unitPrice)}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => changeQty(line.menuItem.id, -1)}
+                    onClick={() => changeQty(line.key, -1)}
                     className="h-8 w-8 rounded-full bg-slate-100 text-lg font-bold active:bg-slate-200"
                   >
                     −
@@ -202,7 +245,7 @@ export default function RegisterPage({
                     {line.quantity}
                   </span>
                   <button
-                    onClick={() => changeQty(line.menuItem.id, 1)}
+                    onClick={() => changeQty(line.key, 1)}
                     className="h-8 w-8 rounded-full bg-slate-100 text-lg font-bold active:bg-slate-200"
                   >
                     +
@@ -232,6 +275,19 @@ export default function RegisterPage({
           </button>
         </div>
       </div>
+
+      {/* オプション選択モーダル */}
+      {optionItem && (
+        <OrderOptionModal
+          item={optionItem}
+          roots={buildOptionForest(optionNodes, optionItem.id)}
+          onClose={() => setOptionItem(null)}
+          onConfirm={(options) => {
+            addLineToCart(optionItem, options);
+            setOptionItem(null);
+          }}
+        />
+      )}
     </div>
   );
 }
