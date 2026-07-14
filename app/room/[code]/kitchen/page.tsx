@@ -1,12 +1,15 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useRoom } from "@/lib/useRoom";
 import { RoomHeader } from "@/components/RoomHeader";
 import { elapsed, yen } from "@/lib/format";
 import type { OrderWithItems } from "@/lib/types";
+
+// public/ に置いた通知音ファイルのパス(ファイル名は notify.mp3 にしてください)
+const NOTIFY_SOUND_SRC = "/notify.mp3";
 
 export default function KitchenPage({
   params,
@@ -17,6 +20,36 @@ export default function KitchenPage({
   const { room, loading, error } = useRoom(code);
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [, forceTick] = useState(0);
+
+  // 通知音まわり
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [soundOn, setSoundOn] = useState(false);
+  const soundOnRef = useRef(false);
+
+  // 保存済みの設定を復元
+  useEffect(() => {
+    setSoundOn(localStorage.getItem("kitchen_sound") === "on");
+  }, []);
+  // 最新の soundOn をリアルタイム購読コールバックから参照できるようにする
+  useEffect(() => {
+    soundOnRef.current = soundOn;
+  }, [soundOn]);
+
+  async function toggleSound() {
+    const next = !soundOn;
+    setSoundOn(next);
+    localStorage.setItem("kitchen_sound", next ? "on" : "off");
+    // ユーザー操作のこのタイミングで一度再生し、自動再生制限を解除しておく
+    if (next && audioRef.current) {
+      try {
+        await audioRef.current.play();
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      } catch {
+        /* 音源が未配置などの場合は無視 */
+      }
+    }
+  }
 
   const load = useCallback(async (roomId: string) => {
     const { data } = await supabase
@@ -44,6 +77,22 @@ export default function KitchenPage({
           filter: `room_id=eq.${room.id}`,
         },
         () => load(room.id)
+      )
+      // 新規注文(INSERT)が入ったら通知音を鳴らす
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "orders",
+          filter: `room_id=eq.${room.id}`,
+        },
+        () => {
+          if (soundOnRef.current && audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(() => {});
+          }
+        }
       )
       .on(
         "postgres_changes",
@@ -95,6 +144,22 @@ export default function KitchenPage({
   return (
     <div className="mx-auto max-w-3xl">
       <RoomHeader room={room} title={`厨房 (${orders.length}件)`} />
+
+      {/* 通知音の音源(public/notify.mp3) */}
+      <audio ref={audioRef} src={NOTIFY_SOUND_SRC} preload="auto" />
+
+      <div className="flex justify-end px-4 pt-3">
+        <button
+          onClick={toggleSound}
+          className={`rounded-full px-4 py-2 text-sm font-bold ${
+            soundOn
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-slate-200 text-slate-500"
+          }`}
+        >
+          {soundOn ? "🔔 通知音 ON" : "🔕 通知音 OFF"}
+        </button>
+      </div>
 
       <div className="p-4">
         {orders.length === 0 ? (

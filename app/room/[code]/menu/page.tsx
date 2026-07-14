@@ -76,6 +76,34 @@ export default function MenuPage({
     load(room.id);
   }
 
+  async function moveItem(index: number, dir: -1 | 1) {
+    if (!room || busy) return;
+    const target = index + dir;
+    if (target < 0 || target >= items.length) return;
+
+    // ローカルで並べ替え(楽観的更新)
+    const reordered = [...items];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(target, 0, moved);
+    setItems(reordered);
+
+    // sort_order がずれている項目だけを連番で保存
+    setBusy(true);
+    try {
+      const changed = reordered
+        .map((it, i) => ({ it, i }))
+        .filter(({ it, i }) => it.sort_order !== i);
+      await Promise.all(
+        changed.map(({ it, i }) =>
+          supabase.from("menu_items").update({ sort_order: i }).eq("id", it.id)
+        )
+      );
+      await load(room.id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function removeItem(item: MenuItem) {
     if (!room) return;
     if (!confirm(`「${item.name}」を削除しますか?`)) return;
@@ -106,13 +134,31 @@ export default function MenuPage({
         )}
 
         <ul className="space-y-2">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <li
               key={item.id}
-              className={`flex items-center gap-3 rounded-xl bg-white p-3 shadow-sm ${
+              className={`flex items-center gap-2 rounded-xl bg-white p-3 shadow-sm ${
                 item.is_active ? "" : "opacity-50"
               }`}
             >
+              <div className="flex flex-col">
+                <button
+                  onClick={() => moveItem(index, -1)}
+                  disabled={index === 0 || busy}
+                  className="flex h-6 w-6 items-center justify-center rounded text-slate-400 active:bg-slate-100 disabled:opacity-20"
+                  aria-label="上へ"
+                >
+                  ▲
+                </button>
+                <button
+                  onClick={() => moveItem(index, 1)}
+                  disabled={index === items.length - 1 || busy}
+                  className="flex h-6 w-6 items-center justify-center rounded text-slate-400 active:bg-slate-100 disabled:opacity-20"
+                  aria-label="下へ"
+                >
+                  ▼
+                </button>
+              </div>
               <div className="min-w-0 flex-1">
                 <NameEditor
                   value={item.name}
