@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-100 text-slate-900 antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* タッチ操作でテキスト選択が邪魔にならないように */
+button {
+  user-select: none;
+  touch-action: manipulation;
+}
