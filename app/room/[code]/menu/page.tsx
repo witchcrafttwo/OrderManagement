@@ -2,6 +2,23 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { supabase } from "@/lib/supabase/client";
 import { useRoom } from "@/lib/useRoom";
 import { RoomHeader } from "@/components/RoomHeader";
@@ -19,6 +36,13 @@ export default function MenuPage({
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const load = useCallback(async (roomId: string) => {
     const { data } = await supabase
@@ -76,18 +100,18 @@ export default function MenuPage({
     load(room.id);
   }
 
-  async function moveItem(index: number, dir: -1 | 1) {
-    if (!room || busy) return;
-    const target = index + dir;
-    if (target < 0 || target >= items.length) return;
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!room || !over || active.id === over.id) return;
 
-    // ローカルで並べ替え(楽観的更新)
-    const reordered = [...items];
-    const [moved] = reordered.splice(index, 1);
-    reordered.splice(target, 0, moved);
-    setItems(reordered);
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
 
-    // sort_order がずれている項目だけを連番で保存
+    const reordered = arrayMove(items, oldIndex, newIndex);
+    setItems(reordered); // 楽観的更新
+
+    // sort_order がずれた項目だけ連番で保存
     setBusy(true);
     try {
       const changed = reordered
@@ -127,76 +151,40 @@ export default function MenuPage({
       <RoomHeader room={room} title="メニュー編集" />
 
       <div className="p-4">
-        {items.length === 0 && (
+        {items.length === 0 ? (
           <p className="mb-4 text-center text-sm text-slate-400">
             まだ商品がありません。下から追加してください。
           </p>
+        ) : (
+          <p className="mb-2 text-center text-xs text-slate-400">
+            ⠿ をドラッグで並び替え
+          </p>
         )}
 
-        <ul className="space-y-2">
-          {items.map((item, index) => (
-            <li
-              key={item.id}
-              className={`flex items-center gap-2 rounded-xl bg-white p-3 shadow-sm ${
-                item.is_active ? "" : "opacity-50"
-              }`}
-            >
-              <div className="flex flex-col">
-                <button
-                  onClick={() => moveItem(index, -1)}
-                  disabled={index === 0 || busy}
-                  className="flex h-6 w-6 items-center justify-center rounded text-slate-400 active:bg-slate-100 disabled:opacity-20"
-                  aria-label="上へ"
-                >
-                  ▲
-                </button>
-                <button
-                  onClick={() => moveItem(index, 1)}
-                  disabled={index === items.length - 1 || busy}
-                  className="flex h-6 w-6 items-center justify-center rounded text-slate-400 active:bg-slate-100 disabled:opacity-20"
-                  aria-label="下へ"
-                >
-                  ▼
-                </button>
-              </div>
-              <div className="min-w-0 flex-1">
-                <NameEditor
-                  value={item.name}
-                  onSave={(v) => updateName(item, v)}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={items.map((i) => i.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className="space-y-2">
+              {items.map((item) => (
+                <SortableRow
+                  key={item.id}
+                  item={item}
+                  roomCode={room.code}
+                  onToggleActive={() => toggleActive(item)}
+                  onRemove={() => removeItem(item)}
+                  onSaveName={(v) => updateName(item, v)}
+                  onSavePrice={(v) => updatePrice(item, v)}
                 />
-                <PriceEditor
-                  value={item.price}
-                  onSave={(v) => updatePrice(item, v)}
-                />
-              </div>
-              <Link
-                href={`/room/${room.code}/menu/${item.id}`}
-                className="rounded-lg px-2 py-2 text-lg active:bg-slate-100"
-                aria-label="オプション設定"
-                title="オプション設定"
-              >
-                ⚙
-              </Link>
-              <button
-                onClick={() => toggleActive(item)}
-                className={`rounded-lg px-3 py-2 text-xs font-bold ${
-                  item.is_active
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-slate-200 text-slate-500"
-                }`}
-              >
-                {item.is_active ? "販売中" : "停止中"}
-              </button>
-              <button
-                onClick={() => removeItem(item)}
-                className="rounded-lg px-2 py-2 text-lg text-red-400 active:bg-red-50"
-                aria-label="削除"
-              >
-                🗑
-              </button>
-            </li>
-          ))}
-        </ul>
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
       </div>
 
       {/* 追加フォーム(下部固定) */}
@@ -225,6 +213,85 @@ export default function MenuPage({
         </div>
       </div>
     </div>
+  );
+}
+
+function SortableRow({
+  item,
+  roomCode,
+  onToggleActive,
+  onRemove,
+  onSaveName,
+  onSavePrice,
+}: {
+  item: MenuItem;
+  roomCode: string;
+  onToggleActive: () => void;
+  onRemove: () => void;
+  onSaveName: (v: string) => void;
+  onSavePrice: (v: number) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2 rounded-xl bg-white p-3 shadow-sm ${
+        item.is_active ? "" : "opacity-50"
+      } ${isDragging ? "shadow-lg ring-2 ring-brand" : ""}`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab touch-none px-1 text-lg text-slate-300 active:cursor-grabbing"
+        aria-label="ドラッグして並び替え"
+      >
+        ⠿
+      </button>
+      <div className="min-w-0 flex-1">
+        <NameEditor value={item.name} onSave={onSaveName} />
+        <PriceEditor value={item.price} onSave={onSavePrice} />
+      </div>
+      <Link
+        href={`/room/${roomCode}/menu/${item.id}`}
+        className="rounded-lg px-2 py-2 text-lg active:bg-slate-100"
+        aria-label="オプション設定"
+        title="オプション設定"
+      >
+        ⚙
+      </Link>
+      <button
+        onClick={onToggleActive}
+        className={`rounded-lg px-3 py-2 text-xs font-bold ${
+          item.is_active
+            ? "bg-emerald-100 text-emerald-700"
+            : "bg-slate-200 text-slate-500"
+        }`}
+      >
+        {item.is_active ? "販売中" : "停止中"}
+      </button>
+      <button
+        onClick={onRemove}
+        className="rounded-lg px-2 py-2 text-lg text-red-400 active:bg-red-50"
+        aria-label="削除"
+      >
+        🗑
+      </button>
+    </li>
   );
 }
 
