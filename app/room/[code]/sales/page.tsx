@@ -2,10 +2,12 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { useRoom } from "@/lib/useRoom";
 import { RoomHeader } from "@/components/RoomHeader";
 import { yen } from "@/lib/format";
+import { downloadCsv, ordersToCsv } from "@/lib/csv";
 import type { OrderWithItems } from "@/lib/types";
 
 export default function SalesPage({
@@ -14,8 +16,10 @@ export default function SalesPage({
   params: Promise<{ code: string }>;
 }) {
   const { code } = use(params);
+  const router = useRouter();
   const { room, loading, error } = useRoom(code);
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async (roomId: string) => {
     const { data } = await supabase
@@ -26,6 +30,94 @@ export default function SalesPage({
       .order("completed_at", { ascending: false });
     setOrders((data as OrderWithItems[]) ?? []);
   }, []);
+
+  /** 書き出し・リセット用に、その部屋の全注文(状態問わず)を取得 */
+  const fetchAllOrders = useCallback(async (roomId: string) => {
+    const { data } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .eq("room_id", roomId)
+      .order("ticket_no", { ascending: true });
+    return (data as OrderWithItems[]) ?? [];
+  }, []);
+
+  function fileStamp() {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(
+      d.getHours()
+    )}${p(d.getMinutes())}`;
+  }
+
+  async function exportCsv() {
+    if (!room) return;
+    setBusy(true);
+    try {
+      const all = await fetchAllOrders(room.id);
+      if (all.length === 0) {
+        alert("書き出す注文がありません。");
+        return;
+      }
+      const csv = ordersToCsv(all);
+      downloadCsv(`${room.name}_${fileStamp()}.csv`, csv);
+    } catch (e) {
+      alert("書き出しに失敗しました: " + (e instanceof Error ? e.message : ""));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function endBusinessReset() {
+    if (!room) return;
+    if (
+      !confirm(
+        "営業終了します。\nまずCSVを書き出し、その後この部屋の注文をすべて削除します。\n(部屋とメニューは残ります)\n\n続けますか?"
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const all = await fetchAllOrders(room.id);
+      if (all.length > 0) {
+        downloadCsv(`${room.name}_${fileStamp()}_backup.csv`, ordersToCsv(all));
+      }
+      const { error: delError } = await supabase
+        .from("orders")
+        .delete()
+        .eq("room_id", room.id);
+      if (delError) throw delError;
+      await load(room.id);
+      alert("営業終了しました。注文をリセットしました。");
+    } catch (e) {
+      alert("リセットに失敗しました: " + (e instanceof Error ? e.message : ""));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteRoom() {
+    if (!room) return;
+    const answer = prompt(
+      `この部屋「${room.name}」を完全に削除します。\nメニューも注文もすべて消え、元に戻せません。\n\n削除するには部屋コード「${room.code}」を入力してください。`
+    );
+    if (answer?.trim().toUpperCase() !== room.code) {
+      if (answer !== null) alert("コードが一致しないため中止しました。");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error: delError } = await supabase
+        .from("rooms")
+        .delete()
+        .eq("id", room.id);
+      if (delError) throw delError;
+      alert("部屋を削除しました。");
+      router.push("/");
+    } catch (e) {
+      alert("削除に失敗しました: " + (e instanceof Error ? e.message : ""));
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (room) load(room.id);
@@ -129,6 +221,45 @@ export default function SalesPage({
             </li>
           ))}
         </ul>
+      </div>
+
+      {/* 運営メニュー */}
+      <div className="px-4">
+        <h2 className="mb-2 mt-6 text-sm font-bold text-slate-500">運営</h2>
+        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+          <button
+            onClick={exportCsv}
+            disabled={busy}
+            className="w-full rounded-lg bg-slate-800 py-3 font-bold text-white active:bg-slate-900 disabled:opacity-50"
+          >
+            📥 CSVで書き出す
+          </button>
+          <button
+            onClick={endBusinessReset}
+            disabled={busy}
+            className="w-full rounded-lg border-2 border-amber-500 py-3 font-bold text-amber-600 active:bg-amber-50 disabled:opacity-50"
+          >
+            🏁 営業終了・注文をリセット
+          </button>
+          <p className="text-xs text-slate-400">
+            リセットすると、CSVを保存したうえで注文履歴だけを削除します。部屋とメニューは残るので、次回もそのまま使えます。
+          </p>
+        </div>
+
+        {/* 危険な操作 */}
+        <div className="mt-4 space-y-2 rounded-2xl border border-red-200 bg-red-50 p-4">
+          <h3 className="text-sm font-bold text-red-600">危険な操作</h3>
+          <button
+            onClick={deleteRoom}
+            disabled={busy}
+            className="w-full rounded-lg bg-red-600 py-3 font-bold text-white active:bg-red-700 disabled:opacity-50"
+          >
+            🗑 この部屋を完全に削除
+          </button>
+          <p className="text-xs text-red-400">
+            部屋・メニュー・注文がすべて消え、元に戻せません。
+          </p>
+        </div>
       </div>
     </div>
   );
