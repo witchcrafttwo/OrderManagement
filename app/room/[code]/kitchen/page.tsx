@@ -142,7 +142,7 @@ export default function KitchenPage({
     );
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <RoomHeader room={room} title={`厨房 (${orders.length}件)`} />
 
       {/* 通知音の音源(public/notify.mp3) */}
@@ -168,7 +168,7 @@ export default function KitchenPage({
             <p className="mt-2">未完成の注文はありません</p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {orders.map((order) => (
               <div
                 key={order.id}

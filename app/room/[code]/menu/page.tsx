@@ -100,6 +100,12 @@ export default function MenuPage({
     load(room.id);
   }
 
+  async function updateSize(item: MenuItem, size: number) {
+    if (!room || item.size === size) return;
+    await supabase.from("menu_items").update({ size }).eq("id", item.id);
+    load(room.id);
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!room || !over || active.id === over.id) return;
@@ -147,7 +153,7 @@ export default function MenuPage({
     );
 
   return (
-    <div className="mx-auto max-w-md pb-24">
+    <div className="mx-auto max-w-2xl pb-24">
       <RoomHeader room={room} title="メニュー編集" />
 
       <div className="p-4">
@@ -180,6 +186,7 @@ export default function MenuPage({
                   onRemove={() => removeItem(item)}
                   onSaveName={(v) => updateName(item, v)}
                   onSavePrice={(v) => updatePrice(item, v)}
+                  onSetSize={(s) => updateSize(item, s)}
                 />
               ))}
             </ul>
@@ -188,7 +195,7 @@ export default function MenuPage({
       </div>
 
       {/* 追加フォーム(下部固定) */}
-      <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md border-t bg-white p-3">
+      <div className="fixed inset-x-0 bottom-0 mx-auto max-w-2xl border-t bg-white p-3">
         <div className="flex gap-2">
           <input
             value={name}
@@ -216,6 +223,12 @@ export default function MenuPage({
   );
 }
 
+const SIZE_OPTIONS = [
+  { value: 1, label: "小" },
+  { value: 2, label: "中" },
+  { value: 3, label: "大" },
+];
+
 function SortableRow({
   item,
   roomCode,
@@ -223,6 +236,7 @@ function SortableRow({
   onRemove,
   onSaveName,
   onSavePrice,
+  onSetSize,
 }: {
   item: MenuItem;
   roomCode: string;
@@ -230,6 +244,7 @@ function SortableRow({
   onRemove: () => void;
   onSaveName: (v: string) => void;
   onSavePrice: (v: number) => void;
+  onSetSize: (size: number) => void;
 }) {
   const {
     attributes,
@@ -250,47 +265,69 @@ function SortableRow({
     <li
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 rounded-xl bg-white p-3 shadow-sm ${
+      className={`rounded-xl bg-white p-3 shadow-sm ${
         item.is_active ? "" : "opacity-50"
       } ${isDragging ? "shadow-lg ring-2 ring-brand" : ""}`}
     >
-      <button
-        {...attributes}
-        {...listeners}
-        className="cursor-grab touch-none px-1 text-lg text-slate-300 active:cursor-grabbing"
-        aria-label="ドラッグして並び替え"
-      >
-        ⠿
-      </button>
-      <div className="min-w-0 flex-1">
-        <NameEditor value={item.name} onSave={onSaveName} />
-        <PriceEditor value={item.price} onSave={onSavePrice} />
+      <div className="flex items-center gap-2">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab touch-none px-1 text-lg text-slate-300 active:cursor-grabbing"
+          aria-label="ドラッグして並び替え"
+        >
+          ⠿
+        </button>
+        <div className="min-w-0 flex-1">
+          <NameEditor value={item.name} onSave={onSaveName} />
+          <PriceEditor value={item.price} onSave={onSavePrice} />
+        </div>
+        <Link
+          href={`/room/${roomCode}/menu/${item.id}`}
+          className="rounded-lg px-2 py-2 text-lg active:bg-slate-100"
+          aria-label="オプション設定"
+          title="オプション設定"
+        >
+          ⚙
+        </Link>
+        <button
+          onClick={onToggleActive}
+          className={`rounded-lg px-3 py-2 text-xs font-bold ${
+            item.is_active
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-slate-200 text-slate-500"
+          }`}
+        >
+          {item.is_active ? "販売中" : "停止中"}
+        </button>
+        <button
+          onClick={onRemove}
+          className="rounded-lg px-2 py-2 text-lg text-red-400 active:bg-red-50"
+          aria-label="削除"
+        >
+          🗑
+        </button>
       </div>
-      <Link
-        href={`/room/${roomCode}/menu/${item.id}`}
-        className="rounded-lg px-2 py-2 text-lg active:bg-slate-100"
-        aria-label="オプション設定"
-        title="オプション設定"
-      >
-        ⚙
-      </Link>
-      <button
-        onClick={onToggleActive}
-        className={`rounded-lg px-3 py-2 text-xs font-bold ${
-          item.is_active
-            ? "bg-emerald-100 text-emerald-700"
-            : "bg-slate-200 text-slate-500"
-        }`}
-      >
-        {item.is_active ? "販売中" : "停止中"}
-      </button>
-      <button
-        onClick={onRemove}
-        className="rounded-lg px-2 py-2 text-lg text-red-400 active:bg-red-50"
-        aria-label="削除"
-      >
-        🗑
-      </button>
+
+      {/* レジ表示サイズ */}
+      <div className="mt-2 flex items-center gap-2 pl-8">
+        <span className="text-xs text-slate-400">レジ表示</span>
+        <div className="flex overflow-hidden rounded-lg border border-slate-200">
+          {SIZE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onSetSize(opt.value)}
+              className={`px-3 py-1 text-xs font-bold ${
+                item.size === opt.value
+                  ? "bg-brand text-white"
+                  : "bg-white text-slate-500"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </li>
   );
 }

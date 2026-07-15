@@ -125,7 +125,7 @@ export default function OptionEditorPage({
     );
 
   return (
-    <div className="mx-auto max-w-md pb-24">
+    <div className="mx-auto max-w-2xl pb-24">
       <RoomHeader room={room} title={`オプション設定: ${item.name}`} />
 
       <div className="p-4">

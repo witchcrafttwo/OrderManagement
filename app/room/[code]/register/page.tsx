@@ -166,7 +166,7 @@ export default function RegisterPage({
     );
 
   return (
-    <div className="mx-auto flex min-h-full max-w-md flex-col pb-44">
+    <div className="mx-auto flex min-h-full max-w-4xl flex-col pb-44">
       <RoomHeader room={room} title="レジ" />
 
       {lastTicket !== null && (
@@ -191,17 +191,18 @@ export default function RegisterPage({
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {items.map((item) => {
               const qty = qtyForItem(item.id);
+              const s = tileClasses(item.size);
               return (
                 <button
                   key={item.id}
                   onClick={() => onTapItem(item)}
-                  className="flex flex-col items-start rounded-2xl bg-white p-4 text-left shadow-sm active:scale-95"
+                  className={`flex flex-col items-start rounded-2xl bg-white text-left shadow-sm active:scale-95 ${s.wrapper}`}
                 >
-                  <span className="font-bold">{item.name}</span>
-                  <span className="text-sm text-slate-500">
+                  <span className={`font-bold ${s.name}`}>{item.name}</span>
+                  <span className={`text-slate-500 ${s.price}`}>
                     {yen(item.price)}
                     {hasOptions(optionNodes, item.id) && (
                       <span className="ml-1 text-xs text-brand">〜</span>
@@ -220,7 +221,7 @@ export default function RegisterPage({
       </div>
 
       {/* カート(下部固定) */}
-      <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md border-t bg-white">
+      <div className="fixed inset-x-0 bottom-0 mx-auto max-w-4xl border-t bg-white">
         {count > 0 && (
           <div className="max-h-48 overflow-y-auto px-4 pt-3">
             {Object.values(cart).map((line) => (
@@ -290,6 +291,27 @@ export default function RegisterPage({
       )}
     </div>
   );
+}
+
+/** 商品サイズ(1=小/2=中/3=大)ごとのタイルのクラス */
+function tileClasses(size: number): {
+  wrapper: string;
+  name: string;
+  price: string;
+} {
+  switch (size) {
+    case 1:
+      return { wrapper: "p-3", name: "text-sm", price: "text-xs" };
+    case 3:
+      return {
+        wrapper: "p-6 col-span-2 min-h-28 justify-center",
+        name: "text-2xl",
+        price: "text-base",
+      };
+    case 2:
+    default:
+      return { wrapper: "p-4", name: "text-base", price: "text-sm" };
+  }
 }
 
 function Center({ children }: { children: React.ReactNode }) {

@@ -153,7 +153,7 @@ export default function SalesPage({
     );
 
   return (
-    <div className="mx-auto max-w-md pb-10">
+    <div className="mx-auto max-w-2xl pb-10">
       <RoomHeader room={room} title="売上・履歴" />
 
       <div className="grid grid-cols-2 gap-3 p-4">
