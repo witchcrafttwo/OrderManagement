@@ -29,6 +29,18 @@ export default function RegisterPage({
   const [submitting, setSubmitting] = useState(false);
   const [lastTicket, setLastTicket] = useState<number | null>(null);
   const [optionItem, setOptionItem] = useState<MenuItem | null>(null);
+  const [sizeLevel, setSizeLevel] = useState<1 | 2 | 3>(2);
+
+  // 端末ごとの表示サイズ設定を復元
+  useEffect(() => {
+    const v = Number(localStorage.getItem("register_size"));
+    if (v === 1 || v === 2 || v === 3) setSizeLevel(v);
+  }, []);
+
+  function changeSize(v: 1 | 2 | 3) {
+    setSizeLevel(v);
+    localStorage.setItem("register_size", String(v));
+  }
 
   const load = useCallback(async (roomId: string) => {
     const [{ data: itemData }, { data: nodeData }] = await Promise.all([
@@ -191,32 +203,60 @@ export default function RegisterPage({
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {items.map((item) => {
-              const qty = qtyForItem(item.id);
-              const s = tileClasses(item.size);
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onTapItem(item)}
-                  className={`flex flex-col items-start rounded-2xl bg-white text-left shadow-sm active:scale-95 ${s.wrapper}`}
-                >
-                  <span className={`font-bold ${s.name}`}>{item.name}</span>
-                  <span className={`text-slate-500 ${s.price}`}>
-                    {yen(item.price)}
-                    {hasOptions(optionNodes, item.id) && (
-                      <span className="ml-1 text-xs text-brand">〜</span>
-                    )}
-                  </span>
-                  {qty > 0 && (
-                    <span className="mt-1 rounded-full bg-brand px-2 text-xs font-bold text-white">
-                      ×{qty}
+          <>
+            {/* 表示サイズ切り替え(全体) */}
+            <div className="mb-3 flex items-center justify-end gap-2">
+              <span className="text-xs text-slate-400">表示サイズ</span>
+              <div className="flex overflow-hidden rounded-lg border border-slate-200">
+                {([
+                  [1, "小"],
+                  [2, "中"],
+                  [3, "大"],
+                ] as const).map(([v, label]) => (
+                  <button
+                    key={v}
+                    onClick={() => changeSize(v)}
+                    className={`px-4 py-1.5 text-sm font-bold ${
+                      sizeLevel === v
+                        ? "bg-brand text-white"
+                        : "bg-white text-slate-500"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={`grid gap-3 ${SIZE_PRESETS[sizeLevel].grid}`}>
+              {items.map((item) => {
+                const qty = qtyForItem(item.id);
+                const preset = SIZE_PRESETS[sizeLevel];
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onTapItem(item)}
+                    className={`flex flex-col items-start rounded-2xl bg-white text-left shadow-sm active:scale-95 ${preset.pad}`}
+                  >
+                    <span className={`font-bold ${preset.name}`}>
+                      {item.name}
                     </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                    <span className={`text-slate-500 ${preset.price}`}>
+                      {yen(item.price)}
+                      {hasOptions(optionNodes, item.id) && (
+                        <span className="ml-1 text-xs text-brand">〜</span>
+                      )}
+                    </span>
+                    {qty > 0 && (
+                      <span className="mt-1 rounded-full bg-brand px-2 text-xs font-bold text-white">
+                        ×{qty}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
@@ -293,26 +333,33 @@ export default function RegisterPage({
   );
 }
 
-/** 商品サイズ(1=小/2=中/3=大)ごとのタイルのクラス */
-function tileClasses(size: number): {
-  wrapper: string;
-  name: string;
-  price: string;
-} {
-  switch (size) {
-    case 1:
-      return { wrapper: "p-3", name: "text-sm", price: "text-xs" };
-    case 3:
-      return {
-        wrapper: "p-6 col-span-2 min-h-28 justify-center",
-        name: "text-2xl",
-        price: "text-base",
-      };
-    case 2:
-    default:
-      return { wrapper: "p-4", name: "text-base", price: "text-sm" };
-  }
-}
+/**
+ * レジ全体の表示サイズプリセット(1=小/2=中/3=大)。
+ * ※ grid 列数のクラスは Tailwind が拾えるよう、必ずリテラルで記述すること。
+ */
+const SIZE_PRESETS: Record<
+  1 | 2 | 3,
+  { grid: string; pad: string; name: string; price: string }
+> = {
+  1: {
+    grid: "grid-cols-3 sm:grid-cols-4 lg:grid-cols-6",
+    pad: "p-2",
+    name: "text-sm",
+    price: "text-xs",
+  },
+  2: {
+    grid: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
+    pad: "p-4",
+    name: "text-base",
+    price: "text-sm",
+  },
+  3: {
+    grid: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+    pad: "p-6",
+    name: "text-2xl",
+    price: "text-lg",
+  },
+};
 
 function Center({ children }: { children: React.ReactNode }) {
   return (

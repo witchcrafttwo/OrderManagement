@@ -14,7 +14,6 @@ export interface MenuItem {
   price: number;
   sort_order: number;
   is_active: boolean;
-  size: number; // 1=小, 2=中, 3=大(レジ表示サイズ)
   created_at: string;
 }
 
