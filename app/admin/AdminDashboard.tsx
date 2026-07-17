@@ -89,7 +89,7 @@ export function AdminDashboard({ rooms }: { rooms: RoomRow[] }) {
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-16">
+    <main className="mx-auto max-w-4xl p-4 pb-16">
       <header className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">🛠 管理画面</h1>
         <button

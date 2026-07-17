@@ -178,7 +178,7 @@ export default function RegisterPage({
     );
 
   return (
-    <div className="mx-auto flex min-h-full max-w-4xl flex-col pb-44">
+    <div className="mx-auto flex min-h-full w-full max-w-[1600px] flex-col pb-44">
       <RoomHeader room={room} title="レジ" />
 
       {lastTicket !== null && (
@@ -261,7 +261,7 @@ export default function RegisterPage({
       </div>
 
       {/* カート(下部固定) */}
-      <div className="fixed inset-x-0 bottom-0 mx-auto max-w-4xl border-t bg-white">
+      <div className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-[1600px] border-t bg-white">
         {count > 0 && (
           <div className="max-h-48 overflow-y-auto px-4 pt-3">
             {Object.values(cart).map((line) => (
@@ -342,19 +342,19 @@ const SIZE_PRESETS: Record<
   { grid: string; pad: string; name: string; price: string }
 > = {
   1: {
-    grid: "grid-cols-3 sm:grid-cols-4 lg:grid-cols-6",
+    grid: "grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10",
     pad: "p-2",
     name: "text-sm",
     price: "text-xs",
   },
   2: {
-    grid: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
+    grid: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7",
     pad: "p-4",
     name: "text-base",
     price: "text-sm",
   },
   3: {
-    grid: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+    grid: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5",
     pad: "p-6",
     name: "text-2xl",
     price: "text-lg",
