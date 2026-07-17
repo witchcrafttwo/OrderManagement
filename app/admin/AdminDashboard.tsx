@@ -18,6 +18,7 @@ export interface RoomRow {
 export function AdminDashboard({ rooms }: { rooms: RoomRow[] }) {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [codeInput, setCodeInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
@@ -33,7 +34,10 @@ export function AdminDashboard({ rooms }: { rooms: RoomRow[] }) {
       const res = await fetch("/api/admin/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          code: codeInput.trim() || undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -42,6 +46,7 @@ export function AdminDashboard({ rooms }: { rooms: RoomRow[] }) {
       }
       setCreatedCode(data.room.code);
       setName("");
+      setCodeInput("");
       router.refresh();
       setTimeout(() => setCreatedCode(null), 6000);
     } catch {
@@ -120,21 +125,37 @@ export function AdminDashboard({ rooms }: { rooms: RoomRow[] }) {
       {/* 部屋を発行 */}
       <section className="mb-6 rounded-2xl bg-white p-4 shadow-sm">
         <h2 className="mb-3 font-bold">新しい部屋を発行</h2>
-        <div className="flex gap-2">
+        <div className="space-y-2">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && createRoom()}
             placeholder="出店名(例: たこ焼き屋台)"
-            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-3 outline-none focus:border-brand"
+            className="w-full rounded-lg border border-slate-300 px-3 py-3 outline-none focus:border-brand"
           />
-          <button
-            onClick={createRoom}
-            disabled={busy || !name.trim()}
-            className="rounded-lg bg-brand px-5 font-bold text-white active:bg-brand-dark disabled:opacity-50"
-          >
-            発行
-          </button>
+          <div className="flex gap-2">
+            <input
+              value={codeInput}
+              onChange={(e) =>
+                setCodeInput(
+                  e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                )
+              }
+              onKeyDown={(e) => e.key === "Enter" && createRoom()}
+              placeholder="コード(任意・空欄で自動)"
+              maxLength={16}
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-3 font-mono tracking-widest outline-none focus:border-brand"
+            />
+            <button
+              onClick={createRoom}
+              disabled={busy || !name.trim()}
+              className="rounded-lg bg-brand px-5 font-bold text-white active:bg-brand-dark disabled:opacity-50"
+            >
+              発行
+            </button>
+          </div>
+          <p className="text-xs text-slate-400">
+            コードは英数字2〜16文字。空欄なら自動で6桁を発行します。
+          </p>
         </div>
       </section>
 

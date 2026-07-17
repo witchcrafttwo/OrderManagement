@@ -29,6 +29,35 @@ export async function POST(req: Request) {
   }
 
   const supabase = getAdminClient();
+
+  // 管理者がコードを指定した場合
+  const rawCode = (body as { code?: unknown })?.code;
+  if (typeof rawCode === "string" && rawCode.trim()) {
+    const code = rawCode.trim().toUpperCase();
+    if (!/^[A-Z0-9]{2,16}$/.test(code)) {
+      return NextResponse.json(
+        { error: "コードは英数字2〜16文字で入力してください" },
+        { status: 400 }
+      );
+    }
+    const { data, error } = await supabase
+      .from("rooms")
+      .insert({ code, name: name.trim() })
+      .select()
+      .single();
+    if (!error) {
+      return NextResponse.json({ room: data });
+    }
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: `コード「${code}」は既に使われています` },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // 指定なし: 自動生成
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateRoomCode();
     const { data, error } = await supabase

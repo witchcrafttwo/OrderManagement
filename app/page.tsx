@@ -62,7 +62,7 @@ export default function HomePage() {
           onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === "Enter" && handleJoin()}
           placeholder="部屋コード(例: ABC123)"
-          maxLength={6}
+          maxLength={16}
           className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-3 text-center text-lg font-mono tracking-widest outline-none focus:border-brand"
         />
         <button
