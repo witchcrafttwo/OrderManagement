@@ -57,6 +57,24 @@ export async function applySchema(connectionString, hooks = {}) {
 
     return info;
   } finally {
-    await client.end().catch(() => {});
+    await closeClient(client);
   }
+}
+
+/**
+ * 接続を閉じる。相手から返事がなくても待ち続けないよう、5秒で切り上げる。
+ * (起動時に毎回流すので、ここで止まるとサーバーがいつまでも立ち上がらない)
+ */
+async function closeClient(client) {
+  let timer;
+  await Promise.race([
+    client.end().catch(() => {}),
+    new Promise((resolve) => {
+      timer = setTimeout(resolve, 5000);
+    }),
+  ]);
+  clearTimeout(timer);
+  // 切り上げたときは通信が残っているので、強制的に閉じてプロセスが終われるようにする
+  // (正常に閉じられたときは何もしない)
+  client.connection?.stream?.destroy();
 }

@@ -1,0 +1,36 @@
+# =============================================================
+#  屋台オーダー  Docker Compose 設定
+#
+#  この docker フォルダの中で実行する:
+#    docker compose up -d --build   … ビルドして起動(更新したときも同じコマンド)
+#    docker compose logs -f         … ログを見る(Ctrl+C で抜けてもサーバーは止まらない)
+#    docker compose down            … 止める
+#  (プロジェクトのルートからなら: docker compose -f docker/compose.yaml up -d --build)
+#
+#  接続先やパスワードは、プロジェクトのルートの .env.local から読む。
+#  ★ PostgreSQL が同じPCにあるときは、DATABASE_URL のホストを
+#    localhost ではなく host.docker.internal にする
+#    (コンテナの中の localhost は、PC ではなくコンテナ自身を指すため)
+#      DATABASE_URL=postgresql://ユーザー:パスワード@host.docker.internal:5432/stall_orders
+#  ※ .env.local の値に $ が入っているときは '…' で囲む($ 以降が変数として扱われるため)
+# =============================================================
+
+name: stall-order-manager
+
+services:
+  app:
+    build:
+      context: ..                    # プロジェクトのルート
+      dockerfile: docker/Dockerfile  # context からの相対パス
+    image: stall-order-manager:latest
+    init: true                       # 止めるときの合図を、確実にサーバーへ届ける
+    restart: unless-stopped          # 落ちたときや、Docker Desktop が起動したときに自動で立ち上げる
+    ports:
+      - "3000:3000"                  # 左が PC 側のポート。変えるなら左だけ(例: "8080:3000")
+    env_file:
+      - ../.env.local
+    environment:
+      PORT: "3000"                   # コンテナの中は常に 3000 番(.env.local の PORT より優先)
+    extra_hosts:
+      # Docker Desktop では最初から使える名前。Linux の Docker でも使えるようにしておく
+      - "host.docker.internal:host-gateway"
