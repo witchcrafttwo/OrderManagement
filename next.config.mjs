@@ -36,6 +36,10 @@ const nextConfig = {
   reactStrictMode: true,
   // 親フォルダに別の lockfile があってもこのフォルダを基準にする
   outputFileTracingRoot: __dirname,
+  // Docker イメージを作るときだけ(docker/Dockerfile が STANDALONE_OUTPUT=1 を付ける)、
+  // 実行に必要なファイルを .next/standalone にまとめる。
+  // 普段の npm run build / start-server.cmd には影響しない
+  ...(process.env.STANDALONE_OUTPUT === "1" ? { output: "standalone" } : {}),
   allowedDevOrigins: localDevOrigins(),
 };
 

@@ -1,0 +1,25 @@
+# docker/Dockerfile 専用の除外リスト
+#   Docker(BuildKit)は「Dockerfile名.dockerignore」を Dockerfile の隣から読む。
+#   パターンはビルドコンテキスト(プロジェクトのルート)からの相対パス。
+
+# 秘密情報(パスワードなど)をイメージに入れない。起動時に --env-file で渡す
+.env
+.env.*
+
+# PC 側で作られたもの(コンテナの中で作り直す)
+node_modules
+.next
+out
+build
+next-env.d.ts
+*.tsbuildinfo
+
+# ビルドに関係ないもの
+.git
+.vscode
+.kiro
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+**/.DS_Store
+**/Thumbs.db
